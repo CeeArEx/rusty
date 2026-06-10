@@ -1,11 +1,12 @@
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout},
+    layout::{Alignment, Constraint, Layout, Position},
     style::{Color, Style},
-    widgets::{Block, Borders, Paragraph},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
 };
 
-use crate::app::App;
+use crate::app::{App, InputMode};
 
 pub fn render(app: &mut App, frame: &mut Frame) {
     // Vertical: header + content
@@ -25,14 +26,39 @@ pub fn render(app: &mut App, frame: &mut Frame) {
         header_area,
     );
 
-    // Chat / prompt area
-    frame.render_widget(
-        Paragraph::new("Chat / prompt area")
-            .block(Block::default().title("Chat").borders(Borders::ALL))
-            .style(Style::default().fg(Color::LightYellow))
-            .alignment(Alignment::Left),
-        chat_area,
-    );
+    // Chat area split into messages + input
+    let chat_layout = Layout::vertical([Constraint::Min(1), Constraint::Length(3)]);
+    let [messages_area, input_area] = chat_layout.areas(chat_area);
+
+    // Messages
+    let messages: Vec<ListItem> = app
+        .messages
+        .iter()
+        .map(|m| {
+            let content = Line::from(Span::raw(m.clone()));
+            ListItem::new(content)
+        })
+        .collect();
+    let messages_widget = List::new(messages)
+        .block(Block::default().title("Chat").borders(Borders::ALL));
+    frame.render_widget(messages_widget, messages_area);
+
+    // Input box
+    let input = Paragraph::new(app.input.as_str())
+        .style(match app.input_mode {
+            InputMode::Editing => Style::default().fg(Color::Yellow),
+            InputMode::Normal => Style::default(),
+        })
+        .block(Block::default().title("Input").borders(Borders::ALL));
+    frame.render_widget(input, input_area);
+
+    // Cursor
+    if app.input_mode == InputMode::Editing {
+        frame.set_cursor_position(Position::new(
+            input_area.x + app.cursor as u16 + 1,
+            input_area.y + 1,
+        ));
+    }
 
     // Sidebar (tokens, etc.)
     frame.render_widget(
